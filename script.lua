@@ -1,6 +1,6 @@
 --[[
     ╔════════════════════════════════════════════════════════════════════╗
-    ║   BLOX FRUITS ULTIMATE - DIAMOND RELEASE (v8.0)                   ║
+    ║   BLOX FRUITS ULTIMATE - DIAMOND RELEASE (v8.1 + DB v6.0)         ║
     ║   Status: Undetected | Stability: 100% | Mobile Optimized         ║
     ╚════════════════════════════════════════════════════════════════════╝
 ]]
@@ -31,11 +31,13 @@ local LP = Services.Players.LocalPlayer
 local Mouse = LP:GetMouse()
 
 -- ════════════════════════════════════════════════════════════
--- 2. QUEST DATABASE COMPLETO
+-- 2. QUEST DATABASE COMPLETO (ATUALIZADO v6.0)
 -- ════════════════════════════════════════════════════════════
 
 local QuestDB = {
-    -- SEA 1
+    -- ═══════════════════════════════════════════════════════
+    -- SEA 1 (First Sea)
+    -- ═══════════════════════════════════════════════════════
     {Min=1, Max=9, ID="BanditQuest1", Mob="Bandit", Level=1, Pos=CFrame.new(1060, 17, 1550)},
     {Min=10, Max=14, ID="JungleQuest", Mob="Monkey", Level=1, Pos=CFrame.new(-1604, 37, 152)},
     {Min=15, Max=29, ID="JungleQuest", Mob="Gorilla", Level=2, Pos=CFrame.new(-1230, 6, -485)},
@@ -61,7 +63,10 @@ local QuestDB = {
     {Min=525, Max=549, ID="SkyExp2Quest", Mob="Royal Soldier", Level=2, Pos=CFrame.new(-7906, 5634, -1411)},
     {Min=550, Max=624, ID="FountainQuest", Mob="Galley Pirate", Level=1, Pos=CFrame.new(5255, 39, 4050)},
     {Min=625, Max=649, ID="FountainQuest", Mob="Galley Captain", Level=2, Pos=CFrame.new(5255, 39, 4050)},
-    -- SEA 2
+
+    -- ═══════════════════════════════════════════════════════
+    -- SEA 2 (Second Sea / New World)
+    -- ═══════════════════════════════════════════════════════
     {Min=700, Max=724, ID="Area1Quest", Mob="Raider", Level=1, Pos=CFrame.new(-428, 73, 1836)},
     {Min=725, Max=774, ID="Area1Quest", Mob="Mercenary", Level=2, Pos=CFrame.new(-428, 73, 1836)},
     {Min=775, Max=799, ID="Area2Quest", Mob="Swan Pirate", Level=1, Pos=CFrame.new(638, 73, 1478)},
@@ -83,8 +88,11 @@ local QuestDB = {
     {Min=1350, Max=1374, ID="FrostQuest", Mob="Arctic Warrior", Level=1, Pos=CFrame.new(5669, 29, -6482)},
     {Min=1375, Max=1424, ID="FrostQuest", Mob="Snow Lurker", Level=2, Pos=CFrame.new(5669, 29, -6482)},
     {Min=1425, Max=1449, ID="ForgottenQuest", Mob="Sea Soldier", Level=1, Pos=CFrame.new(-3054, 236, -10145)},
-    {Min=1450, Max=1499, ID="ForgottenQuest", Mob="Water Fighter", Level=2, Pos=CFrame.new(-3054, 236, -10145)},
-    -- SEA 3
+    {Min=1450, Max=1474, ID="ForgottenQuest", Mob="Water Fighter", Level=2, Pos=CFrame.new(-3054, 236, -10145)},
+
+    -- ═══════════════════════════════════════════════════════
+    -- SEA 3 (Third Sea)
+    -- ═══════════════════════════════════════════════════════
     {Min=1500, Max=1524, ID="PiratePortQuest", Mob="Pirate Millionaire", Level=1, Pos=CFrame.new(-290, 44, 5580)},
     {Min=1525, Max=1574, ID="PiratePortQuest", Mob="Pistol Billionaire", Level=2, Pos=CFrame.new(-290, 44, 5580)},
     {Min=1575, Max=1599, ID="AmazonQuest", Mob="Dragon Crew Warrior", Level=1, Pos=CFrame.new(5832, 52, -1100)},
@@ -266,7 +274,6 @@ local function TweenTo(targetCFrame)
     local stuckCount = 0
 
     while not completed do
-        -- ✅ VALIDAÇÃO CONTÍNUA (Correção #1)
         if not LP.Character or not LP.Character:FindFirstChild("HumanoidRootPart") then
             tween:Cancel()
             break
@@ -282,12 +289,10 @@ local function TweenTo(targetCFrame)
             break
         end
 
-        -- ✅ ANTI-STUCK (Correção #4)
         if (HRP.Position - lastPos).Magnitude < 1 then
             stuckCount = stuckCount + 1
             if stuckCount > 50 then -- 5 segundos
                 tween:Cancel()
-                -- Pulo de emergência
                 if LP.Character:FindFirstChild("Humanoid") then
                     LP.Character.Humanoid.Jump = true
                 end
@@ -390,12 +395,9 @@ local function StartFarm()
         if tick() - LastLogic < 0.1 then return end
         LastLogic = tick()
         
-        -- ✅ PROTEÇÃO CONTRA CRASH (Correção #2)
         local status, err = pcall(function()
-            -- Validar Character
             if not LP.Character or not LP.Character:FindFirstChild("Humanoid") or LP.Character.Humanoid.Health <= 0 then return end
             
-            -- Anti-Death
             if getgenv().Config.SafeMode and LP.Character.Humanoid.Health < (LP.Character.Humanoid.MaxHealth * 0.3) then
                 LP.Character.HumanoidRootPart.CFrame = LP.Character.HumanoidRootPart.CFrame * CFrame.new(0, 200, 0)
                 return
@@ -404,7 +406,6 @@ local function StartFarm()
             local QData = GetQuestData()
             local hasQuest = LP.PlayerGui.Main.Quest.Visible
             
-            -- Quest Check
             if not hasQuest and getgenv().Config.AutoQuest then
                 if (LP.Character.HumanoidRootPart.Position - QData.Pos.Position).Magnitude > 2500 then
                     TweenTo(QData.Pos)
@@ -414,7 +415,6 @@ local function StartFarm()
                 return
             end
             
-            -- Target Check
             local target = nil
             local dist = 4000
             
@@ -458,11 +458,11 @@ local function StartFarm()
 end
 
 -- ════════════════════════════════════════════════════════════
--- 8. UI COMPLETA (Correção #3)
+-- 8. UI COMPLETA (FIXED LIBRARY LINK)
 -- ════════════════════════════════════════════════════════════
 
-local OrionLib = loadstring(game:HttpGet(('https://raw.githubusercontent.com/shlexware/Orion/main/source')))()
-local Window = OrionLib:MakeWindow({Name = "💎 Blox Fruits v8 | Diamond", HidePremium = false, SaveConfig = true, ConfigFolder = "BFDeltaV8"})
+local OrionLib = loadstring(game:HttpGet(('https://raw.githubusercontent.com/jensonhirst/Orion/main/source')))()
+local Window = OrionLib:MakeWindow({Name = "💎 Blox Fruits v8.1 | Diamond", HidePremium = false, SaveConfig = true, ConfigFolder = "BFDeltaV8"})
 
 local FarmTab = Window:MakeTab({Name = "Auto Farm", Icon = "rbxassetid://4483345998", PremiumOnly = false})
 
