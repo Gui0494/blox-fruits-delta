@@ -1,7 +1,7 @@
 --[[
     ╔════════════════════════════════════════════════════════════════════╗
-    ║   BLOX FRUITS ULTIMATE - DIAMOND RELEASE (v8.1 + DB v6.0)         ║
-    ║   Status: Undetected | Stability: 100% | Mobile Optimized         ║
+    ║   BLOX FRUITS ULTIMATE - DIAMOND RELEASE (v8.2 HITBOX EDITION)    ║
+    ║   Status: Undetected | Features: Auto Bring + Hitbox Expander     ║
     ╚════════════════════════════════════════════════════════════════════╝
 ]]
 
@@ -11,7 +11,7 @@
 
 if not game:IsLoaded() then game.Loaded:Wait() end
 
--- Limpeza de Instâncias Anteriores
+-- Limpeza
 if getgenv().BloxInstance then
     getgenv().BloxInstance:DisconnectAll()
 end
@@ -31,13 +31,11 @@ local LP = Services.Players.LocalPlayer
 local Mouse = LP:GetMouse()
 
 -- ════════════════════════════════════════════════════════════
--- 2. QUEST DATABASE COMPLETO (ATUALIZADO v6.0)
+-- 2. QUEST DATABASE (MANTIDO)
 -- ════════════════════════════════════════════════════════════
 
 local QuestDB = {
-    -- ═══════════════════════════════════════════════════════
-    -- SEA 1 (First Sea)
-    -- ═══════════════════════════════════════════════════════
+    -- SEA 1
     {Min=1, Max=9, ID="BanditQuest1", Mob="Bandit", Level=1, Pos=CFrame.new(1060, 17, 1550)},
     {Min=10, Max=14, ID="JungleQuest", Mob="Monkey", Level=1, Pos=CFrame.new(-1604, 37, 152)},
     {Min=15, Max=29, ID="JungleQuest", Mob="Gorilla", Level=2, Pos=CFrame.new(-1230, 6, -485)},
@@ -63,10 +61,7 @@ local QuestDB = {
     {Min=525, Max=549, ID="SkyExp2Quest", Mob="Royal Soldier", Level=2, Pos=CFrame.new(-7906, 5634, -1411)},
     {Min=550, Max=624, ID="FountainQuest", Mob="Galley Pirate", Level=1, Pos=CFrame.new(5255, 39, 4050)},
     {Min=625, Max=649, ID="FountainQuest", Mob="Galley Captain", Level=2, Pos=CFrame.new(5255, 39, 4050)},
-
-    -- ═══════════════════════════════════════════════════════
-    -- SEA 2 (Second Sea / New World)
-    -- ═══════════════════════════════════════════════════════
+    -- SEA 2
     {Min=700, Max=724, ID="Area1Quest", Mob="Raider", Level=1, Pos=CFrame.new(-428, 73, 1836)},
     {Min=725, Max=774, ID="Area1Quest", Mob="Mercenary", Level=2, Pos=CFrame.new(-428, 73, 1836)},
     {Min=775, Max=799, ID="Area2Quest", Mob="Swan Pirate", Level=1, Pos=CFrame.new(638, 73, 1478)},
@@ -89,10 +84,7 @@ local QuestDB = {
     {Min=1375, Max=1424, ID="FrostQuest", Mob="Snow Lurker", Level=2, Pos=CFrame.new(5669, 29, -6482)},
     {Min=1425, Max=1449, ID="ForgottenQuest", Mob="Sea Soldier", Level=1, Pos=CFrame.new(-3054, 236, -10145)},
     {Min=1450, Max=1474, ID="ForgottenQuest", Mob="Water Fighter", Level=2, Pos=CFrame.new(-3054, 236, -10145)},
-
-    -- ═══════════════════════════════════════════════════════
-    -- SEA 3 (Third Sea)
-    -- ═══════════════════════════════════════════════════════
+    -- SEA 3
     {Min=1500, Max=1524, ID="PiratePortQuest", Mob="Pirate Millionaire", Level=1, Pos=CFrame.new(-290, 44, 5580)},
     {Min=1525, Max=1574, ID="PiratePortQuest", Mob="Pistol Billionaire", Level=2, Pos=CFrame.new(-290, 44, 5580)},
     {Min=1575, Max=1599, ID="AmazonQuest", Mob="Dragon Crew Warrior", Level=1, Pos=CFrame.new(5832, 52, -1100)},
@@ -269,7 +261,6 @@ local function TweenTo(targetCFrame)
     local completed = false
     local conn = tween.Completed:Connect(function() completed = true end)
     
-    -- Anti-Stuck Variables
     local lastPos = HRP.Position
     local stuckCount = 0
 
@@ -291,7 +282,7 @@ local function TweenTo(targetCFrame)
 
         if (HRP.Position - lastPos).Magnitude < 1 then
             stuckCount = stuckCount + 1
-            if stuckCount > 50 then -- 5 segundos
+            if stuckCount > 50 then 
                 tween:Cancel()
                 if LP.Character:FindFirstChild("Humanoid") then
                     LP.Character.Humanoid.Jump = true
@@ -336,7 +327,7 @@ local function ServerHop()
 end
 
 -- ════════════════════════════════════════════════════════════
--- 6. LÓGICA DE FARM
+-- 6. LÓGICA DE FARM COM HITBOX E BRING
 -- ════════════════════════════════════════════════════════════
 
 local function GetQuestData()
@@ -349,6 +340,32 @@ end
 
 local LastAttack = 0
 local AttackDelay = 0.15
+
+-- ✅ NOVA FUNÇÃO: Bring Mobs & Hitbox Expander
+local function BringAndHitbox(targetName)
+    local myHRP = LP.Character:FindFirstChild("HumanoidRootPart")
+    if not myHRP then return end
+
+    for _, v in pairs(workspace.Enemies:GetChildren()) do
+        if v.Name == targetName and v:FindFirstChild("Humanoid") and v.Humanoid.Health > 0 then
+            local enemyHRP = v:FindFirstChild("HumanoidRootPart")
+            if enemyHRP and (enemyHRP.Position - myHRP.Position).Magnitude < 350 then
+                
+                -- BRING (Client-side)
+                enemyHRP.CFrame = myHRP.CFrame * CFrame.new(0, 0, -5) -- Puxa para frente
+                enemyHRP.CanCollide = false
+                v.Humanoid.WalkSpeed = 0
+                v.Humanoid.JumpPower = 0
+                
+                -- HITBOX (Seguro: 60x60x60)
+                if enemyHRP.Size.X < 50 then
+                    enemyHRP.Size = Vector3.new(60, 60, 60)
+                    enemyHRP.Transparency = 0.5
+                end
+            end
+        end
+    end
+end
 
 local function AttackHumanized(target)
     if not target then return end
@@ -383,7 +400,7 @@ local function AttackHumanized(target)
 end
 
 -- ════════════════════════════════════════════════════════════
--- 7. LOOP PRINCIPAL PROTEGIDO
+-- 7. LOOP PRINCIPAL (AGRESSIVO)
 -- ════════════════════════════════════════════════════════════
 
 local function StartFarm()
@@ -406,6 +423,7 @@ local function StartFarm()
             local QData = GetQuestData()
             local hasQuest = LP.PlayerGui.Main.Quest.Visible
             
+            -- 1. QUEST CHECK
             if not hasQuest and getgenv().Config.AutoQuest then
                 if (LP.Character.HumanoidRootPart.Position - QData.Pos.Position).Magnitude > 2500 then
                     TweenTo(QData.Pos)
@@ -415,6 +433,7 @@ local function StartFarm()
                 return
             end
             
+            -- 2. TARGET CHECK
             local target = nil
             local dist = 4000
             
@@ -428,18 +447,19 @@ local function StartFarm()
                 end
             end
             
+            -- 3. ATTACK LOGIC (UPDATED)
             if target then
                 NoMobCount = 0
-                target.Humanoid.WalkSpeed = 0
-                target.Humanoid.JumpPower = 0
                 
-                local attackPos = target.HumanoidRootPart.CFrame * CFrame.new(0, getgenv().Config.Distance, 0)
-                
-                if dist > 200 then
-                    TweenTo(attackPos)
+                -- Se estiver longe, usa Tween
+                if dist > 250 then
+                    TweenTo(target.HumanoidRootPart.CFrame * CFrame.new(0, 30, 0))
                 else
-                    LP.Character.HumanoidRootPart.CFrame = attackPos
-                    AttackHumanized(target)
+                    -- Se estiver perto: PARA, TRAZ TODOS, BATE
+                    LP.Character.HumanoidRootPart.CFrame = target.HumanoidRootPart.CFrame * CFrame.new(0, 20, 0) -- Fica em cima (seguro)
+                    
+                    BringAndHitbox(QData.Mob) -- ✅ PUXA TODOS
+                    AttackHumanized(target)   -- ✅ BATE
                 end
             else
                 NoMobCount = NoMobCount + 1
@@ -458,11 +478,11 @@ local function StartFarm()
 end
 
 -- ════════════════════════════════════════════════════════════
--- 8. UI COMPLETA (FIXED LIBRARY LINK)
+-- 8. UI COMPLETA
 -- ════════════════════════════════════════════════════════════
 
 local OrionLib = loadstring(game:HttpGet(('https://raw.githubusercontent.com/jensonhirst/Orion/main/source')))()
-local Window = OrionLib:MakeWindow({Name = "💎 Blox Fruits v8.1 | Diamond", HidePremium = false, SaveConfig = true, ConfigFolder = "BFDeltaV8"})
+local Window = OrionLib:MakeWindow({Name = "💎 Blox Fruits v8.2 | Hitbox Ed.", HidePremium = false, SaveConfig = true, ConfigFolder = "BFDeltaV8"})
 
 local FarmTab = Window:MakeTab({Name = "Auto Farm", Icon = "rbxassetid://4483345998", PremiumOnly = false})
 
