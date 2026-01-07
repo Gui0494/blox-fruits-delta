@@ -32,6 +32,22 @@ if not game:IsLoaded() then
 end
 task.wait(1)
 
+-- Verifica se é Blox Fruits
+local placeId = game.PlaceId
+local isBloxFruits = (placeId == 2753915549 or placeId == 4442272183 or placeId == 7449423635)
+
+if not isBloxFruits then
+    pcall(function()
+        local name = game:GetService("MarketplaceService"):GetProductInfo(placeId).Name or ""
+        isBloxFruits = (name:lower():find("blox") and name:lower():find("fruit"))
+    end)
+end
+
+if not isBloxFruits then
+    warn("[Blox Ultimate] This script only works on Blox Fruits!")
+    return
+end
+
 -- Limpa instâncias anteriores
 if getgenv().BloxUltimate then
     pcall(function()
@@ -1164,99 +1180,110 @@ function Combat.GetEquippedWeapon()
 end
 
 function Combat.Attack(target)
-    if not target or not Utils.IsAlive() then return end
-    
-    local now = tick()
-    if now - Combat.LastAttack < Combat.AttackDelay then return end
-    Combat.LastAttack = now
-    Combat.AttackDelay = 0.1 + math.random() * 0.05 -- 100-150ms
-    
-    -- Enable Buso Haki
-    if getgenv().Config.AutoBusoHaki then
-        local char = Utils.GetCharacter()
-        if char and not char:FindFirstChild("HasBuso") then
-            RemoteHandler.Invoke("Buso")
+    pcall(function()
+        if not target or not Utils.IsAlive() then return end
+        
+        local now = tick()
+        if now - Combat.LastAttack < Combat.AttackDelay then return end
+        Combat.LastAttack = now
+        Combat.AttackDelay = 0.1 + math.random() * 0.05 -- 100-150ms
+        
+        -- Enable Buso Haki
+        if getgenv().Config and getgenv().Config.AutoBusoHaki then
+            local char = Utils.GetCharacter()
+            if char and not char:FindFirstChild("HasBuso") then
+                RemoteHandler.Invoke("Buso")
+            end
         end
-    end
-    
-    local hrp = target:FindFirstChild("HumanoidRootPart")
-    if not hrp then return end
-    
-    if getgenv().Config.FastAttack then
-        RemoteHandler.Invoke("weaponL1", target, hrp)
-    else
-        VirtualInputManager:SendMouseButtonEvent(0, 0, 0, true, game, 1)
-        task.wait(0.02)
-        VirtualInputManager:SendMouseButtonEvent(0, 0, 0, false, game, 1)
-    end
+        
+        local hrp = target:FindFirstChild("HumanoidRootPart")
+        if not hrp then return end
+        
+        if getgenv().Config and getgenv().Config.FastAttack then
+            RemoteHandler.Invoke("weaponL1", target, hrp)
+        else
+            VirtualInputManager:SendMouseButtonEvent(0, 0, 0, true, game, 1)
+            task.wait(0.02)
+            VirtualInputManager:SendMouseButtonEvent(0, 0, 0, false, game, 1)
+        end
+    end)
 end
 
 function Combat.UseSkill(skillKey)
-    local now = tick()
-    local lastUse = Combat.LastSkill[skillKey] or 0
-    local cooldown = getgenv().Config.SkillCooldown or 0.5
-    
-    if now - lastUse < cooldown then return false end
-    Combat.LastSkill[skillKey] = now
-    
-    VirtualInputManager:SendKeyEvent(true, skillKey, false, game)
-    task.wait(0.02)
-    VirtualInputManager:SendKeyEvent(false, skillKey, false, game)
-    
-    return true
+    local success = false
+    pcall(function()
+        local now = tick()
+        local lastUse = Combat.LastSkill[skillKey] or 0
+        local cooldown = (getgenv().Config and getgenv().Config.SkillCooldown) or 0.5
+        
+        if now - lastUse < cooldown then return end
+        Combat.LastSkill[skillKey] = now
+        
+        VirtualInputManager:SendKeyEvent(true, skillKey, false, game)
+        task.wait(0.02)
+        VirtualInputManager:SendKeyEvent(false, skillKey, false, game)
+        
+        success = true
+    end)
+    return success
 end
 
 function Combat.SpamSkills()
-    if not getgenv().Config.AutoSkill then return end
-    
-    local skills = {
-        Enum.KeyCode.Z,
-        Enum.KeyCode.X,
-        Enum.KeyCode.C,
-        Enum.KeyCode.V,
-        Enum.KeyCode.F
-    }
-    
-    for _, skill in ipairs(skills) do
-        Combat.UseSkill(skill)
-        task.wait(0.1)
-    end
+    pcall(function()
+        if not getgenv().Config or not getgenv().Config.AutoSkill then return end
+        
+        local skills = {
+            Enum.KeyCode.Z,
+            Enum.KeyCode.X,
+            Enum.KeyCode.C,
+            Enum.KeyCode.V,
+            Enum.KeyCode.F
+        }
+        
+        for _, skill in ipairs(skills) do
+            Combat.UseSkill(skill)
+            task.wait(0.1)
+        end
+    end)
 end
 
 function Combat.BringMobs(mobName, radius)
-    local hrp = Utils.GetHRP()
-    if not hrp then return end
-    
-    radius = radius or getgenv().Config.BringDistance
-    local enemies = Workspace:FindFirstChild("Enemies")
-    if not enemies then return end
-    
-    for _, enemy in pairs(enemies:GetChildren()) do
-        if enemy.Name == mobName then
-            local enemyHRP = enemy:FindFirstChild("HumanoidRootPart")
-            local enemyHum = enemy:FindFirstChild("Humanoid")
-            
-            if enemyHRP and enemyHum and enemyHum.Health > 0 then
-                local dist = Utils.Distance(hrp.Position, enemyHRP.Position)
-                if dist < radius then
-                    -- Bring to front of player
-                    enemyHRP.CFrame = hrp.CFrame * CFrame.new(0, 0, -5)
-                    enemyHRP.CanCollide = false
-                    enemyHRP.Anchored = true
-                    
-                    -- Disable movement
-                    enemyHum.WalkSpeed = 0
-                    enemyHum.JumpPower = 0
+    pcall(function()
+        local hrp = Utils.GetHRP()
+        if not hrp then return end
+        
+        radius = radius or (getgenv().Config and getgenv().Config.BringDistance) or 80
+        local enemies = Workspace:FindFirstChild("Enemies")
+        if not enemies then return end
+        
+        for _, enemy in pairs(enemies:GetChildren()) do
+            if enemy.Name == mobName then
+                local enemyHRP = enemy:FindFirstChild("HumanoidRootPart")
+                local enemyHum = enemy:FindFirstChild("Humanoid")
+                
+                if enemyHRP and enemyHum and enemyHum.Health > 0 then
+                    local dist = Utils.Distance(hrp.Position, enemyHRP.Position)
+                    if dist < radius then
+                        -- Bring to front of player
+                        enemyHRP.CFrame = hrp.CFrame * CFrame.new(0, 0, -5)
+                        enemyHRP.CanCollide = false
+                        enemyHRP.Anchored = true
+                        
+                        -- Disable movement
+                        enemyHum.WalkSpeed = 0
+                        enemyHum.JumpPower = 0
+                    end
                 end
             end
         end
-    end
+    end)
 end
 
 function Combat.ExpandHitbox(mobName, size)
-    size = size or getgenv().Config.HitboxSize
-    local enemies = Workspace:FindFirstChild("Enemies")
-    if not enemies then return end
+    pcall(function()
+        size = size or (getgenv().Config and getgenv().Config.HitboxSize) or 50
+        local enemies = Workspace:FindFirstChild("Enemies")
+        if not enemies then return end
     
     for _, enemy in pairs(enemies:GetChildren()) do
         if enemy.Name == mobName then
@@ -1267,34 +1294,39 @@ function Combat.ExpandHitbox(mobName, size)
             end
         end
     end
+    end)
 end
 
 function Combat.KillAura(radius)
-    if not getgenv().Config.KillAura then return end
-    
-    local hrp = Utils.GetHRP()
-    if not hrp then return end
-    
-    radius = radius or 50
-    local enemies = Workspace:FindFirstChild("Enemies")
-    if not enemies then return end
-    
-    for _, enemy in pairs(enemies:GetChildren()) do
-        local enemyHRP = enemy:FindFirstChild("HumanoidRootPart")
-        local enemyHum = enemy:FindFirstChild("Humanoid")
+    pcall(function()
+        if not getgenv().Config or not getgenv().Config.KillAura then return end
         
-        if enemyHRP and enemyHum and enemyHum.Health > 0 then
-            local dist = Utils.Distance(hrp.Position, enemyHRP.Position)
-            if dist < radius then
-                Combat.Attack(enemy)
+        local hrp = Utils.GetHRP()
+        if not hrp then return end
+        
+        radius = radius or 50
+        local enemies = Workspace:FindFirstChild("Enemies")
+        if not enemies then return end
+        
+        for _, enemy in pairs(enemies:GetChildren()) do
+            local enemyHRP = enemy:FindFirstChild("HumanoidRootPart")
+            local enemyHum = enemy:FindFirstChild("Humanoid")
+            
+            if enemyHRP and enemyHum and enemyHum.Health > 0 then
+                local dist = Utils.Distance(hrp.Position, enemyHRP.Position)
+                if dist < radius then
+                    Combat.Attack(enemy)
+                end
             end
         end
-    end
+    end)
 end
 
 function Combat.AutoKen()
-    if not getgenv().Config.AutoKen then return end
-    RemoteHandler.Invoke("Ken")
+    pcall(function()
+        if not getgenv().Config or not getgenv().Config.AutoKen then return end
+        RemoteHandler.Invoke("Ken")
+    end)
 end
 
 -- ════════════════════════════════════════════════════════════════════════════════
@@ -2018,47 +2050,49 @@ MaterialsFarm.Materials = {
 }
 
 function MaterialsFarm.FarmMaterial(materialName)
-    local material = MaterialsFarm.Materials[materialName]
-    if not material then return end
-    
-    local enemies = Workspace:FindFirstChild("Enemies")
-    if not enemies then return end
-    
-    local hrp = Utils.GetHRP()
-    if not hrp then return end
-    
-    local target, closestDist = nil, math.huge
-    
-    for _, enemy in pairs(enemies:GetChildren()) do
-        if enemy.Name == material.Mob then
-            local enemyHRP = enemy:FindFirstChild("HumanoidRootPart")
-            local enemyHum = enemy:FindFirstChild("Humanoid")
-            
-            if enemyHRP and enemyHum and enemyHum.Health > 0 then
-                local dist = Utils.Distance(hrp.Position, enemyHRP.Position)
-                if dist < closestDist then
-                    target = enemy
-                    closestDist = dist
+    pcall(function()
+        local material = MaterialsFarm.Materials[materialName]
+        if not material then return end
+        
+        local enemies = Workspace:FindFirstChild("Enemies")
+        if not enemies then return end
+        
+        local hrp = Utils.GetHRP()
+        if not hrp then return end
+        
+        local target, closestDist = nil, math.huge
+        
+        for _, enemy in pairs(enemies:GetChildren()) do
+            if enemy.Name == material.Mob then
+                local enemyHRP = enemy:FindFirstChild("HumanoidRootPart")
+                local enemyHum = enemy:FindFirstChild("Humanoid")
+                
+                if enemyHRP and enemyHum and enemyHum.Health > 0 then
+                    local dist = Utils.Distance(hrp.Position, enemyHRP.Position)
+                    if dist < closestDist then
+                        target = enemy
+                        closestDist = dist
+                    end
                 end
             end
         end
-    end
-    
-    if target then
-        local targetHRP = target:FindFirstChild("HumanoidRootPart")
-        if targetHRP then
-            if closestDist > 100 then
-                Movement.TweenTo(targetHRP.CFrame * CFrame.new(0, 20, 0))
-            else
-                hrp.CFrame = targetHRP.CFrame * CFrame.new(0, 15, 0)
-                Combat.EquipWeapon(getgenv().Config.SelectedWeapon)
-                Combat.Attack(target)
-                Combat.SpamSkills()
+        
+        if target then
+            local targetHRP = target:FindFirstChild("HumanoidRootPart")
+            if targetHRP then
+                if closestDist > 100 then
+                    Movement.TweenTo(targetHRP.CFrame * CFrame.new(0, 20, 0))
+                else
+                    hrp.CFrame = targetHRP.CFrame * CFrame.new(0, 15, 0)
+                    Combat.EquipWeapon(getgenv().Config.SelectedWeapon)
+                    Combat.Attack(target)
+                    Combat.SpamSkills()
+                end
             end
+        elseif material.Location then
+            Movement.TweenTo(material.Location)
         end
-    else
-        Movement.TweenTo(material.Location)
-    end
+    end)
 end
 
 function MaterialsFarm.StartMaterialFarm()
@@ -2172,38 +2206,44 @@ function UtilityFeatures.AntiAFK()
 end
 
 function UtilityFeatures.FPSBooster()
-    if not getgenv().Config.FPSBooster then return end
-    
-    settings().Rendering.QualityLevel = 1
-    
-    for _, v in pairs(Workspace:GetDescendants()) do
-        if v:IsA("Part") or v:IsA("MeshPart") then
-            v.Material = Enum.Material.Plastic
-            v.Reflectance = 0
+    pcall(function()
+        if not getgenv().Config or not getgenv().Config.FPSBooster then return end
+        
+        settings().Rendering.QualityLevel = 1
+        
+        for _, v in pairs(Workspace:GetDescendants()) do
+            if v:IsA("Part") or v:IsA("MeshPart") then
+                v.Material = Enum.Material.Plastic
+                v.Reflectance = 0
+            end
+            if v:IsA("ParticleEmitter") or v:IsA("Trail") then
+                v.Enabled = false
+            end
         end
-        if v:IsA("ParticleEmitter") or v:IsA("Trail") then
-            v.Enabled = false
-        end
-    end
+    end)
 end
 
 function UtilityFeatures.RemoveFog()
-    if not getgenv().Config.RemoveFog then return end
-    Lighting.FogEnd = 9e9
-    Lighting.FogStart = 9e9
+    pcall(function()
+        if not getgenv().Config or not getgenv().Config.RemoveFog then return end
+        Lighting.FogEnd = 9e9
+        Lighting.FogStart = 9e9
+    end)
 end
 
 function UtilityFeatures.InfiniteEnergy()
     local energyLoop = RunService.Heartbeat:Connect(function()
-        if not getgenv().Config.InfiniteEnergy then return end
-        
-        local char = Utils.GetCharacter()
-        if char then
-            local energy = char:FindFirstChild("Energy")
-            if energy then
-                energy.Value = 1000
+        pcall(function()
+            if not getgenv().Config or not getgenv().Config.InfiniteEnergy then return end
+            
+            local char = Utils.GetCharacter()
+            if char then
+                local energy = char:FindFirstChild("Energy")
+                if energy then
+                    energy.Value = 1000
+                end
             end
-        end
+        end)
     end)
     
     Manager:Connect("InfiniteEnergy", energyLoop)
