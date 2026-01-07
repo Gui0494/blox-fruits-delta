@@ -148,15 +148,19 @@ function Utils.GetClosest(folder, filter, maxDist)
 end
 
 function Utils.Notify(title, text, duration)
-    if getgenv().Config and getgenv().Config.Notifications then
-        pcall(function()
+    pcall(function()
+        local shouldNotify = true
+        if getgenv().Config and getgenv().Config.Notifications == false then
+            shouldNotify = false
+        end
+        if shouldNotify then
             game:GetService("StarterGui"):SetCore("SendNotification", {
                 Title = title or "Blox Ultimate",
                 Text = text or "",
                 Duration = duration or 3
             })
-        end)
-    end
+        end
+    end)
 end
 
 -- ════════════════════════════════════════════════════════════════════════════════
@@ -1422,63 +1426,71 @@ function AutoFarm.Start()
     AutoFarm.NoMobCounter = 0
     
     local farmLoop = RunService.Heartbeat:Connect(function()
-        if not getgenv().Config.AutoFarm then
-            AutoFarm.Running = false
-            return
-        end
-        
-        if not Utils.IsAlive() then
-            task.wait(1)
-            return
-        end
-        
-        -- Safe Mode - Escape if low health
-        if getgenv().Config.SafeMode then
-            local hum = Utils.GetHumanoid()
-            if hum and hum.Health < (hum.MaxHealth * 0.3) then
-                local hrp = Utils.GetHRP()
-                if hrp then
-                    hrp.CFrame = hrp.CFrame * CFrame.new(0, 200, 0)
-                end
+        local success, err = pcall(function()
+            if not getgenv().Config or not getgenv().Config.AutoFarm then
+                AutoFarm.Running = false
                 return
             end
-        end
-        
-        local questData = QuestDatabase.GetQuestForLevel()
-        
-        -- Accept quest if needed
-        if getgenv().Config.AutoQuest and not AutoFarm.HasQuest() then
-            AutoFarm.AcceptQuest(questData)
-            return
-        end
-        
-        -- Find and attack target
-        local target, distance = AutoFarm.GetTarget(questData.MobName)
-        
-        if target then
-            AutoFarm.NoMobCounter = 0
             
-            -- Equip weapon
-            Combat.EquipWeapon(getgenv().Config.SelectedWeapon)
-            
-            -- Handle mastery farming
-            if getgenv().Config.AutoFarmMastery then
-                AutoFarm.FarmMastery()
+            if not Utils.IsAlive() then
+                return
             end
             
-            -- Farm the target
-            AutoFarm.FarmMob(target)
-        else
-            AutoFarm.NoMobCounter = AutoFarm.NoMobCounter + 1
+            -- Safe Mode - Escape if low health
+            if getgenv().Config.SafeMode then
+                local hum = Utils.GetHumanoid()
+                if hum and hum.Health < (hum.MaxHealth * 0.3) then
+                    local hrp = Utils.GetHRP()
+                    if hrp then
+                        hrp.CFrame = hrp.CFrame * CFrame.new(0, 200, 0)
+                    end
+                    return
+                end
+            end
             
-            -- Go to mob spawn location
-            Movement.TweenTo(questData.MobPos)
+            local questData = QuestDatabase.GetQuestForLevel()
+            if not questData then return end
             
-            -- Server hop if no mobs for too long
-            if AutoFarm.NoMobCounter > 500 and getgenv().Config.ServerHop then
+            -- Accept quest if needed
+            if getgenv().Config.AutoQuest and not AutoFarm.HasQuest() then
+                AutoFarm.AcceptQuest(questData)
+                return
+            end
+            
+            -- Find and attack target
+            local target, distance = AutoFarm.GetTarget(questData.MobName)
+            
+            if target then
                 AutoFarm.NoMobCounter = 0
-                ServerHop()
+                
+                -- Equip weapon
+                Combat.EquipWeapon(getgenv().Config.SelectedWeapon)
+                
+                -- Handle mastery farming
+                if getgenv().Config.AutoFarmMastery then
+                    AutoFarm.FarmMastery()
+                end
+                
+                -- Farm the target
+                AutoFarm.FarmMob(target)
+            else
+                AutoFarm.NoMobCounter = AutoFarm.NoMobCounter + 1
+                
+                -- Go to mob spawn location
+                if questData.MobPos then
+                    Movement.TweenTo(questData.MobPos)
+                end
+                
+                -- Server hop if no mobs for too long
+                if AutoFarm.NoMobCounter > 500 and getgenv().Config.ServerHop then
+                    AutoFarm.NoMobCounter = 0
+                    pcall(ServerHop)
+                end
             end
+        end)
+        
+        if not success then
+            warn("[AutoFarm] Error: " .. tostring(err))
         end
     end)
     
@@ -1531,51 +1543,57 @@ function BossFarm.Start()
     BossFarm.Running = true
     
     local bossLoop = RunService.Heartbeat:Connect(function()
-        if not getgenv().Config.AutoFarmBoss then
-            BossFarm.Running = false
-            return
-        end
-        
-        if not Utils.IsAlive() then return end
-        
-        local bossName = getgenv().Config.SelectedBoss or "Auto"
-        local boss = BossFarm.GetBoss(bossName)
-        
-        if boss then
-            local bossHRP = boss:FindFirstChild("HumanoidRootPart")
-            local hrp = Utils.GetHRP()
+        local success, err = pcall(function()
+            if not getgenv().Config or not getgenv().Config.AutoFarmBoss then
+                BossFarm.Running = false
+                return
+            end
             
-            if bossHRP and hrp then
-                local distance = Utils.Distance(hrp.Position, bossHRP.Position)
+            if not Utils.IsAlive() then return end
+            
+            local bossName = getgenv().Config.SelectedBoss or "Auto"
+            local boss = BossFarm.GetBoss(bossName)
+            
+            if boss then
+                local bossHRP = boss:FindFirstChild("HumanoidRootPart")
+                local hrp = Utils.GetHRP()
                 
-                if distance > 100 then
-                    Movement.TweenTo(bossHRP.CFrame * CFrame.new(0, 30, 0))
+                if bossHRP and hrp then
+                    local distance = Utils.Distance(hrp.Position, bossHRP.Position)
+                    
+                    if distance > 100 then
+                        Movement.TweenTo(bossHRP.CFrame * CFrame.new(0, 30, 0))
+                    else
+                        Movement.StopTween()
+                        hrp.CFrame = bossHRP.CFrame * CFrame.new(0, 25, 0)
+                        
+                        Combat.EquipWeapon(getgenv().Config.SelectedWeapon)
+                        Combat.Attack(boss)
+                        
+                        if getgenv().Config.AutoSkill then
+                            Combat.SpamSkills()
+                        end
+                    end
+                end
+            else
+                -- Boss not spawned, teleport to spawn location
+                if bossName ~= "Auto" then
+                    local bossData = BossDatabase.FindBoss(bossName)
+                    if bossData and bossData.Pos then
+                        Movement.TweenTo(bossData.Pos)
+                    end
                 else
-                    Movement.StopTween()
-                    hrp.CFrame = bossHRP.CFrame * CFrame.new(0, 25, 0)
-                    
-                    Combat.EquipWeapon(getgenv().Config.SelectedWeapon)
-                    Combat.Attack(boss)
-                    
-                    if getgenv().Config.AutoSkill then
-                        Combat.SpamSkills()
+                    -- Find appropriate boss for level
+                    local bossData = BossDatabase.GetBossForLevel()
+                    if bossData and bossData.Pos then
+                        Movement.TweenTo(bossData.Pos)
                     end
                 end
             end
-        else
-            -- Boss not spawned, teleport to spawn location
-            if bossName ~= "Auto" then
-                local bossData = BossDatabase.FindBoss(bossName)
-                if bossData then
-                    Movement.TweenTo(bossData.Pos)
-                end
-            else
-                -- Find appropriate boss for level
-                local bossData = BossDatabase.GetBossForLevel()
-                if bossData then
-                    Movement.TweenTo(bossData.Pos)
-                end
-            end
+        end)
+        
+        if not success then
+            warn("[BossFarm] Error: " .. tostring(err))
         end
     end)
     
@@ -1785,79 +1803,95 @@ function ESP.ClearAll()
 end
 
 function ESP.UpdateAll()
+    if not getgenv().Config then return end
+    
     -- Fruit ESP
     if getgenv().Config.FruitESP then
-        for _, fruit in pairs(FruitSystem.GetFruits()) do
-            if not ESP.Objects[fruit] then
-                local name = fruit:IsA("Tool") and fruit.Name or "Fruit"
-                ESP.CreateESP(fruit, ESP.Colors.Fruit, "🍎 " .. name)
+        pcall(function()
+            for _, fruit in pairs(FruitSystem.GetFruits()) do
+                if not ESP.Objects[fruit] then
+                    local name = fruit:IsA("Tool") and fruit.Name or "Fruit"
+                    ESP.CreateESP(fruit, ESP.Colors.Fruit, "🍎 " .. name)
+                end
             end
-        end
+        end)
     end
     
     -- Boss ESP
     if getgenv().Config.ESPBoss then
-        local enemies = Workspace:FindFirstChild("Enemies")
-        if enemies then
-            for _, enemy in pairs(enemies:GetChildren()) do
-                for _, boss in ipairs(BossDatabase) do
-                    if enemy.Name == boss.Name and not ESP.Objects[enemy] then
-                        ESP.CreateESP(enemy, ESP.Colors.Boss, "👹 " .. boss.Name)
+        pcall(function()
+            local enemies = Workspace:FindFirstChild("Enemies")
+            if enemies then
+                for _, enemy in pairs(enemies:GetChildren()) do
+                    for _, boss in ipairs(BossDatabase) do
+                        if enemy.Name == boss.Name and not ESP.Objects[enemy] then
+                            ESP.CreateESP(enemy, ESP.Colors.Boss, "👹 " .. boss.Name)
+                        end
                     end
                 end
             end
-        end
+        end)
     end
     
     -- Player ESP
     if getgenv().Config.ESPPlayer then
-        for _, player in pairs(Players:GetPlayers()) do
-            if player ~= LocalPlayer and player.Character then
-                if not ESP.Objects[player.Character] then
-                    ESP.CreateESP(player.Character, ESP.Colors.Player, "👤 " .. player.Name)
+        pcall(function()
+            for _, player in pairs(Players:GetPlayers()) do
+                if player ~= LocalPlayer and player.Character then
+                    if not ESP.Objects[player.Character] then
+                        ESP.CreateESP(player.Character, ESP.Colors.Player, "👤 " .. player.Name)
+                    end
                 end
             end
-        end
+        end)
     end
     
     -- Chest ESP
     if getgenv().Config.ESPChest then
-        for _, chest in pairs(Workspace:GetDescendants()) do
-            if (chest.Name == "Chest" or chest.Name:find("Chest")) and not ESP.Objects[chest] then
+        pcall(function()
+            for _, chest in pairs(Workspace:GetDescendants()) do
+                if (chest.Name == "Chest" or chest.Name:find("Chest")) and not ESP.Objects[chest] then
                 if chest:IsA("Model") or chest:IsA("BasePart") then
                     ESP.CreateESP(chest, ESP.Colors.Chest, "📦 Chest")
                 end
             end
         end
+        end)
     end
     
     -- Flower ESP
     if getgenv().Config.ESPFlower then
-        for _, flower in pairs(Workspace:GetDescendants()) do
-            if flower.Name:find("Flower") and not ESP.Objects[flower] then
-                local color = flower.Name:find("Blue") and Color3.fromRGB(0, 100, 255) or ESP.Colors.Flower
-                ESP.CreateESP(flower, color, "🌸 " .. flower.Name)
+        pcall(function()
+            for _, flower in pairs(Workspace:GetDescendants()) do
+                if flower.Name:find("Flower") and not ESP.Objects[flower] then
+                    local color = flower.Name:find("Blue") and Color3.fromRGB(0, 100, 255) or ESP.Colors.Flower
+                    ESP.CreateESP(flower, color, "🌸 " .. flower.Name)
+                end
             end
-        end
+        end)
     end
     
     -- Quest Mob ESP
     if getgenv().Config.ESPQuestMobs then
-        local questData = QuestDatabase.GetQuestForLevel()
-        local enemies = Workspace:FindFirstChild("Enemies")
-        if enemies then
-            for _, enemy in pairs(enemies:GetChildren()) do
-                if enemy.Name == questData.MobName and not ESP.Objects[enemy] then
-                    ESP.CreateESP(enemy, ESP.Colors.QuestMob, "⚔️ " .. enemy.Name)
+        pcall(function()
+            local questData = QuestDatabase.GetQuestForLevel()
+            if questData then
+                local enemies = Workspace:FindFirstChild("Enemies")
+                if enemies then
+                    for _, enemy in pairs(enemies:GetChildren()) do
+                        if enemy.Name == questData.MobName and not ESP.Objects[enemy] then
+                            ESP.CreateESP(enemy, ESP.Colors.QuestMob, "⚔️ " .. enemy.Name)
+                        end
+                    end
                 end
             end
-        end
+        end)
     end
 end
 
 function ESP.StartESPLoop()
     local espLoop = RunService.RenderStepped:Connect(function()
-        ESP.UpdateAll()
+        pcall(ESP.UpdateAll)
     end)
     
     Manager:Connect("ESPLoop", espLoop)
@@ -2029,12 +2063,16 @@ end
 
 function MaterialsFarm.StartMaterialFarm()
     local matLoop = RunService.Heartbeat:Connect(function()
-        if getgenv().Config.AutoFarmBone then MaterialsFarm.FarmMaterial("Bone") return end
-        if getgenv().Config.AutoFarmEctoplasm then MaterialsFarm.FarmMaterial("Ectoplasm") return end
-        if getgenv().Config.AutoFarmDarkFragment then MaterialsFarm.FarmMaterial("DarkFragment") return end
-        if getgenv().Config.AutoFarmMagmaOre then MaterialsFarm.FarmMaterial("MagmaOre") return end
-        if getgenv().Config.AutoFarmVampireFang then MaterialsFarm.FarmMaterial("VampireFang") return end
-        if getgenv().Config.AutoFarmDragonScale then MaterialsFarm.FarmMaterial("DragonScale") return end
+        pcall(function()
+            if not getgenv().Config then return end
+            
+            if getgenv().Config.AutoFarmBone then MaterialsFarm.FarmMaterial("Bone") return end
+            if getgenv().Config.AutoFarmEctoplasm then MaterialsFarm.FarmMaterial("Ectoplasm") return end
+            if getgenv().Config.AutoFarmDarkFragment then MaterialsFarm.FarmMaterial("DarkFragment") return end
+            if getgenv().Config.AutoFarmMagmaOre then MaterialsFarm.FarmMaterial("MagmaOre") return end
+            if getgenv().Config.AutoFarmVampireFang then MaterialsFarm.FarmMaterial("VampireFang") return end
+            if getgenv().Config.AutoFarmDragonScale then MaterialsFarm.FarmMaterial("DragonScale") return end
+        end)
     end)
     
     Manager:Connect("MaterialFarmLoop", matLoop)
@@ -2047,21 +2085,27 @@ end
 local HakiSystem = {}
 
 function HakiSystem.EnableBuso()
-    local char = Utils.GetCharacter()
-    if char and not char:FindFirstChild("HasBuso") then
-        RemoteHandler.Invoke("Buso")
-    end
+    pcall(function()
+        local char = Utils.GetCharacter()
+        if char and not char:FindFirstChild("HasBuso") then
+            RemoteHandler.Invoke("Buso")
+        end
+    end)
 end
 
 function HakiSystem.StartHakiLoop()
     local hakiLoop = RunService.Heartbeat:Connect(function()
-        if getgenv().Config.AutoBusoHaki then
-            HakiSystem.EnableBuso()
-        end
-        
-        if getgenv().Config.AutoKen then
-            RemoteHandler.Invoke("Ken")
-        end
+        pcall(function()
+            if not getgenv().Config then return end
+            
+            if getgenv().Config.AutoBusoHaki then
+                HakiSystem.EnableBuso()
+            end
+            
+            if getgenv().Config.AutoKen then
+                RemoteHandler.Invoke("Ken")
+            end
+        end)
     end)
     
     Manager:Connect("HakiLoop", hakiLoop)
@@ -2184,23 +2228,41 @@ function ServerHop()
 end
 
 function UtilityFeatures.StartUtilities()
-    if getgenv().Config.AntiAFK then UtilityFeatures.AntiAFK() end
-    UtilityFeatures.FPSBooster()
-    UtilityFeatures.RemoveFog()
-    UtilityFeatures.InfiniteEnergy()
+    pcall(function()
+        if getgenv().Config and getgenv().Config.AntiAFK then 
+            UtilityFeatures.AntiAFK() 
+        end
+    end)
+    
+    pcall(UtilityFeatures.FPSBooster)
+    pcall(UtilityFeatures.RemoveFog)
+    pcall(UtilityFeatures.InfiniteEnergy)
     
     local movementLoop = RunService.Heartbeat:Connect(function()
-        if getgenv().Config.WalkSpeed > 16 then
-            Movement.SetSpeed(getgenv().Config.WalkSpeed)
-        end
-        if getgenv().Config.JumpPower > 50 then
-            Movement.SetJumpPower(getgenv().Config.JumpPower)
-        end
+        pcall(function()
+            if not getgenv().Config then return end
+            
+            if getgenv().Config.WalkSpeed and getgenv().Config.WalkSpeed > 16 then
+                Movement.SetSpeed(getgenv().Config.WalkSpeed)
+            end
+            if getgenv().Config.JumpPower and getgenv().Config.JumpPower > 50 then
+                Movement.SetJumpPower(getgenv().Config.JumpPower)
+            end
+        end)
     end)
     Manager:Connect("MovementLoop", movementLoop)
     
-    if getgenv().Config.Fly then Movement.Fly(true) end
-    if getgenv().Config.NoClip then Movement.NoClip(true) end
+    pcall(function()
+        if getgenv().Config and getgenv().Config.Fly then 
+            Movement.Fly(true) 
+        end
+    end)
+    
+    pcall(function()
+        if getgenv().Config and getgenv().Config.NoClip then 
+            Movement.NoClip(true) 
+        end
+    end)
 end
 
 -- ════════════════════════════════════════════════════════════════════════════════
@@ -2240,7 +2302,28 @@ end
 -- ════════════════════════════════════════════════════════════════════════════════
 
 local function CreateUI()
-    local OrionLib = loadstring(game:HttpGet('https://raw.githubusercontent.com/jensonhirst/Orion/main/source'))()
+    local OrionLib = nil
+    
+    -- Try multiple sources for Orion
+    local sources = {
+        'https://raw.githubusercontent.com/jensonhirst/Orion/main/source',
+        'https://raw.githubusercontent.com/shlexware/Orion/main/source'
+    }
+    
+    for _, source in ipairs(sources) do
+        local success, result = pcall(function()
+            return loadstring(game:HttpGet(source))()
+        end)
+        if success and result then
+            OrionLib = result
+            break
+        end
+    end
+    
+    if not OrionLib then
+        warn("[Blox Ultimate] Failed to load UI library")
+        return nil
+    end
     
     local Window = OrionLib:MakeWindow({
         Name = "💎 Blox Fruits Ultimate v9.0",
@@ -2803,28 +2886,57 @@ local function Initialize()
     print("║     Loading...                                                    ║")
     print("╚══════════════════════════════════════════════════════════════════╝")
     
-    -- Start ESP
-    ESP.StartESPLoop()
+    -- Start ESP with protection
+    pcall(function()
+        ESP.StartESPLoop()
+    end)
     
-    -- Start Haki System
-    HakiSystem.StartHakiLoop()
+    -- Start Haki System with protection
+    pcall(function()
+        HakiSystem.StartHakiLoop()
+    end)
     
-    -- Start Utilities
-    UtilityFeatures.StartUtilities()
+    -- Start Utilities with protection
+    pcall(function()
+        UtilityFeatures.StartUtilities()
+    end)
     
-    -- Create UI
-    local UI = CreateUI()
+    -- Create UI with protection
+    local success, err = pcall(function()
+        CreateUI()
+    end)
+    
+    if not success then
+        warn("[Blox Ultimate] UI Error: " .. tostring(err))
+        warn("[Blox Ultimate] Attempting fallback UI...")
+        -- Fallback: try alternative Orion source
+        pcall(function()
+            local OrionLib = loadstring(game:HttpGet('https://raw.githubusercontent.com/shlexware/Orion/main/source'))()
+            if OrionLib then
+                local Window = OrionLib:MakeWindow({Name = "Blox Fruits Ultimate v9.0", HidePremium = true})
+                local Tab = Window:MakeTab({Name = "Info"})
+                Tab:AddLabel("UI loaded in fallback mode")
+                Tab:AddLabel("Some features may be limited")
+                OrionLib:Init()
+            end
+        end)
+    end
     
     -- Notification
-    Utils.Notify("Blox Ultimate", "Script loaded successfully! v9.0", 5)
+    pcall(function()
+        Utils.Notify("Blox Ultimate", "Script loaded successfully! v9.0", 5)
+    end)
     
     print("[Blox Ultimate] ✅ All systems initialized!")
     print("[Blox Ultimate] 📊 Features: 200+")
     print("[Blox Ultimate] 🔒 Private Server Optimized")
 end
 
--- Run initialization
-Initialize()
+-- Run initialization with full protection
+local initSuccess, initErr = pcall(Initialize)
+if not initSuccess then
+    warn("[Blox Ultimate] Initialization Error: " .. tostring(initErr))
+end
 
 -- ════════════════════════════════════════════════════════════════════════════════
 -- END OF SCRIPT
