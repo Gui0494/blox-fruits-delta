@@ -1,8 +1,8 @@
 --[[
     ╔══════════════════════════════════════════════════════════════════════════════╗
-    ║                    BLOX FRUITS ULTIMATE - LOADER v2.1                        ║
+    ║                    BLOX FRUITS ULTIMATE - LOADER v2.2                        ║
     ║                     Professional Grade | No Key Required                      ║
-    ║                          STANDALONE VERSION                                   ║
+    ║                          STANDALONE VERSION - FIXED                          ║
     ╚══════════════════════════════════════════════════════════════════════════════╝
 ]]
 
@@ -13,18 +13,120 @@
 local Players = game:GetService("Players")
 local TweenService = game:GetService("TweenService")
 local RunService = game:GetService("RunService")
-local CoreGui = game:GetService("CoreGui")
+local MarketplaceService = game:GetService("MarketplaceService")
+local StarterGui = game:GetService("StarterGui")
+
+local CoreGui = nil
+pcall(function()
+    CoreGui = game:GetService("CoreGui")
+end)
 
 local LocalPlayer = Players.LocalPlayer
+
+-- ════════════════════════════════════════════════════════════════════════════════
+-- CONFIGURATION
+-- ════════════════════════════════════════════════════════════════════════════════
+
+local CONFIG = {
+    MAIN_SCRIPT_URL = "https://raw.githubusercontent.com/BloxFruitsUltimate/BloxFruits-Ultimate-Script/main/BloxFruits_Ultimate_v9.lua",
+    BACKUP_URLS = {
+        "https://raw.githubusercontent.com/BloxFruitsUltimate/BloxFruits-Ultimate-Script/main/BloxFruits_Ultimate_v9.lua",
+        -- Adicione URLs de backup reais aqui
+    },
+    VALID_PLACE_IDS = {
+        2753915549, -- Blox Fruits Main
+        4442272183, -- Blox Fruits Private Server
+        7449423635, -- Blox Fruits Test
+    },
+    GAME_KEYWORDS = {"blox", "fruit"},
+}
+
+-- ════════════════════════════════════════════════════════════════════════════════
+-- UTILITY FUNCTIONS
+-- ════════════════════════════════════════════════════════════════════════════════
+
+local function SafeCall(func, ...)
+    local args = {...}
+    local success, result = pcall(function()
+        return func(unpack(args))
+    end)
+    return success, result
+end
+
+local function IsValidPlaceId(placeId)
+    for _, validId in ipairs(CONFIG.VALID_PLACE_IDS) do
+        if placeId == validId then
+            return true
+        end
+    end
+    return false
+end
+
+local function IsBloxFruitsByName(placeId)
+    local success, productInfo = SafeCall(function()
+        return MarketplaceService:GetProductInfo(placeId)
+    end)
+    
+    if success and productInfo and productInfo.Name then
+        local name = productInfo.Name:lower()
+        local hasAllKeywords = true
+        for _, keyword in ipairs(CONFIG.GAME_KEYWORDS) do
+            if not name:find(keyword) then
+                hasAllKeywords = false
+                break
+            end
+        end
+        return hasAllKeywords
+    end
+    return false
+end
+
+local function HttpGet(url)
+    local success, result = pcall(function()
+        return game:HttpGet(url, true)
+    end)
+    
+    if success and result and #result > 100 then
+        return result
+    end
+    return nil
+end
+
+local function ExecuteScript(scriptContent)
+    if not scriptContent or #scriptContent < 100 then
+        return false, "Invalid script content"
+    end
+    
+    local loadSuccess, loadedFunc = pcall(function()
+        return loadstring(scriptContent)
+    end)
+    
+    if not loadSuccess or not loadedFunc then
+        return false, "Failed to compile script"
+    end
+    
+    local execSuccess, execError = pcall(loadedFunc)
+    
+    if not execSuccess then
+        return false, "Execution error: " .. tostring(execError)
+    end
+    
+    return true, nil
+end
 
 -- ════════════════════════════════════════════════════════════════════════════════
 -- LOADING UI
 -- ════════════════════════════════════════════════════════════════════════════════
 
 local function CreateLoadingUI()
+    -- Limpa UI anterior se existir
     pcall(function()
-        if CoreGui:FindFirstChild("BloxUltimateLoader") then
+        if CoreGui and CoreGui:FindFirstChild("BloxUltimateLoader") then
             CoreGui.BloxUltimateLoader:Destroy()
+        end
+        if LocalPlayer and LocalPlayer:FindFirstChild("PlayerGui") then
+            local pg = LocalPlayer.PlayerGui:FindFirstChild("BloxUltimateLoader")
+            if pg then pg:Destroy() end
         end
     end)
     
@@ -32,10 +134,22 @@ local function CreateLoadingUI()
     ScreenGui.Name = "BloxUltimateLoader"
     ScreenGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
     ScreenGui.ResetOnSpawn = false
+    ScreenGui.IgnoreGuiInset = true
     
-    pcall(function() ScreenGui.Parent = CoreGui end)
+    -- Tenta parenting no CoreGui primeiro
+    local parentSuccess = pcall(function()
+        ScreenGui.Parent = CoreGui
+    end)
+    
+    if not parentSuccess or not ScreenGui.Parent then
+        pcall(function()
+            ScreenGui.Parent = LocalPlayer:WaitForChild("PlayerGui", 5)
+        end)
+    end
+    
     if not ScreenGui.Parent then
-        ScreenGui.Parent = LocalPlayer:WaitForChild("PlayerGui")
+        warn("[Loader] Failed to create UI")
+        return nil
     end
     
     local Background = Instance.new("Frame")
@@ -151,22 +265,62 @@ end
 
 local function UpdateProgress(ui, progress, status)
     if not ui then return end
+    
     pcall(function()
-        TweenService:Create(ui.ProgressFill, TweenInfo.new(0.3), {
-            Size = UDim2.new(progress / 100, 0, 1, 0)
-        }):Play()
-        ui.Percentage.Text = math.floor(progress) .. "%"
-        if status then ui.Status.Text = status end
+        local targetSize = UDim2.new(math.clamp(progress / 100, 0, 1), 0, 1, 0)
+        local tween = TweenService:Create(
+            ui.ProgressFill, 
+            TweenInfo.new(0.3, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), 
+            {Size = targetSize}
+        )
+        tween:Play()
+        
+        ui.Percentage.Text = math.floor(math.clamp(progress, 0, 100)) .. "%"
+        
+        if status then 
+            ui.Status.Text = status 
+        end
     end)
 end
 
-local function DestroyUI(ui)
+local function DestroyUI(ui, delay)
     if not ui then return end
+    
+    delay = delay or 0.5
+    
     pcall(function()
-        local fade = TweenService:Create(ui.Background, TweenInfo.new(0.5), {BackgroundTransparency = 1})
+        task.wait(delay)
+        
+        local fade = TweenService:Create(
+            ui.Background, 
+            TweenInfo.new(0.5, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), 
+            {BackgroundTransparency = 1}
+        )
+        
+        local containerFade = TweenService:Create(
+            ui.Container,
+            TweenInfo.new(0.5, Enum.EasingStyle.Quad, Enum.EasingDirection.Out),
+            {BackgroundTransparency = 1}
+        )
+        
         fade:Play()
+        containerFade:Play()
+        
         fade.Completed:Wait()
-        ui.ScreenGui:Destroy()
+        
+        if ui.ScreenGui and ui.ScreenGui.Parent then
+            ui.ScreenGui:Destroy()
+        end
+    end)
+end
+
+local function SendNotification(title, text, duration)
+    pcall(function()
+        StarterGui:SetCore("SendNotification", {
+            Title = title or "Blox Ultimate",
+            Text = text or "",
+            Duration = duration or 5
+        })
     end)
 end
 
@@ -175,78 +329,132 @@ end
 -- ════════════════════════════════════════════════════════════════════════════════
 
 local function Main()
-    -- Wait for game
-    if not game:IsLoaded() then game.Loaded:Wait() end
+    -- Aguarda o jogo carregar completamente
+    if not game:IsLoaded() then
+        game.Loaded:Wait()
+    end
     
-    -- Create UI
-    local ui = CreateLoadingUI()
-    UpdateProgress(ui, 10, "🔍 Checking game...")
+    -- Aguarda o player estar pronto
+    if not LocalPlayer then
+        LocalPlayer = Players.LocalPlayer or Players:GetPropertyChangedSignal("LocalPlayer"):Wait()
+    end
+    
+    -- Pequeno delay para garantir estabilidade
     task.wait(0.5)
     
-    -- Verify game
+    -- Cria UI
+    local ui = CreateLoadingUI()
+    
+    if ui then
+        UpdateProgress(ui, 10, "🔍 Checking game...")
+    end
+    task.wait(0.3)
+    
+    -- Verifica se é Blox Fruits
     local placeId = game.PlaceId
-    local isBloxFruits = (placeId == 2753915549 or placeId == 4442272183 or placeId == 7449423635)
+    local isBloxFruits = IsValidPlaceId(placeId)
     
     if not isBloxFruits then
-        pcall(function()
-            local name = game:GetService("MarketplaceService"):GetProductInfo(placeId).Name or ""
-            isBloxFruits = name:lower():find("blox") and name:lower():find("fruit")
-        end)
+        if ui then
+            UpdateProgress(ui, 20, "🔍 Verifying game name...")
+        end
+        task.wait(0.2)
+        isBloxFruits = IsBloxFruitsByName(placeId)
     end
     
     if not isBloxFruits then
-        UpdateProgress(ui, 100, "❌ This script only works on Blox Fruits!")
+        if ui then
+            UpdateProgress(ui, 100, "❌ This script only works on Blox Fruits!")
+        end
+        warn("[Loader] This script only works on Blox Fruits!")
+        warn("[Loader] Current Place ID: " .. tostring(placeId))
         task.wait(3)
-        DestroyUI(ui)
+        DestroyUI(ui, 0)
         return
     end
     
-    UpdateProgress(ui, 25, "✅ Blox Fruits detected!")
-    task.wait(0.5)
-    
-    UpdateProgress(ui, 40, "🛡️ Applying protections...")
-    task.wait(0.5)
-    
-    UpdateProgress(ui, 60, "📦 Loading script...")
-    task.wait(0.5)
-    
-    UpdateProgress(ui, 80, "🚀 Executing...")
+    if ui then
+        UpdateProgress(ui, 30, "✅ Blox Fruits detected!")
+    end
     task.wait(0.3)
     
-    -- Execute main script
-    local success, err = pcall(function()
-        loadstring(game:HttpGet("https://raw.githubusercontent.com/BloxFruitsUltimate/BloxFruits-Ultimate-Script/main/BloxFruits_Ultimate_v9.lua"))()
-    end)
+    if ui then
+        UpdateProgress(ui, 45, "🛡️ Applying protections...")
+    end
+    task.wait(0.3)
     
-    -- If remote load fails, notify user
-    if not success then
-        UpdateProgress(ui, 90, "⚠️ Trying backup method...")
-        task.wait(0.5)
+    if ui then
+        UpdateProgress(ui, 60, "📦 Downloading script...")
+    end
+    
+    -- Tenta carregar o script principal
+    local scriptContent = nil
+    local downloadError = nil
+    
+    -- Tenta URL principal
+    scriptContent = HttpGet(CONFIG.MAIN_SCRIPT_URL)
+    
+    -- Se falhar, tenta backups
+    if not scriptContent then
+        if ui then
+            UpdateProgress(ui, 65, "⚠️ Trying backup sources...")
+        end
         
-        -- Try backup
-        success, err = pcall(function()
-            loadstring(game:HttpGet("https://pastebin.com/raw/YOUR_BACKUP_CODE"))()
-        end)
+        for i, backupUrl in ipairs(CONFIG.BACKUP_URLS) do
+            if backupUrl ~= CONFIG.MAIN_SCRIPT_URL then
+                task.wait(0.5)
+                scriptContent = HttpGet(backupUrl)
+                if scriptContent then
+                    break
+                end
+            end
+        end
     end
     
-    if success then
-        UpdateProgress(ui, 100, "✅ Script loaded successfully!")
-        task.wait(1)
-        pcall(function()
-            game:GetService("StarterGui"):SetCore("SendNotification", {
-                Title = "Blox Ultimate",
-                Text = "Script loaded! Enjoy 🎮",
-                Duration = 5
-            })
-        end)
+    if not scriptContent then
+        if ui then
+            UpdateProgress(ui, 100, "❌ Failed to download script!")
+        end
+        warn("[Loader] Failed to download script from all sources")
+        SendNotification("Blox Ultimate", "Failed to download script. Check your internet connection.", 5)
+        task.wait(3)
+        DestroyUI(ui, 0)
+        return
+    end
+    
+    if ui then
+        UpdateProgress(ui, 80, "🚀 Executing script...")
+    end
+    task.wait(0.3)
+    
+    -- Executa o script
+    local execSuccess, execError = ExecuteScript(scriptContent)
+    
+    if execSuccess then
+        if ui then
+            UpdateProgress(ui, 100, "✅ Script loaded successfully!")
+        end
+        task.wait(0.5)
+        SendNotification("Blox Ultimate", "Script loaded! Enjoy 🎮", 5)
     else
-        UpdateProgress(ui, 100, "❌ Error loading script")
-        task.wait(2)
-        warn("[Loader] Error: " .. tostring(err))
+        if ui then
+            UpdateProgress(ui, 100, "❌ Error: " .. tostring(execError):sub(1, 50))
+        end
+        warn("[Loader] Execution Error: " .. tostring(execError))
+        SendNotification("Blox Ultimate", "Error loading script. Check console.", 5)
+        task.wait(3)
     end
     
-    DestroyUI(ui)
+    DestroyUI(ui, 1)
 end
 
--- Run
-pcall(Main)
+-- ════════════════════════════════════════════════════════════════════════════════
+-- EXECUTION
+-- ════════════════════════════════════════════════════════════════════════════════
+
+local mainSuccess, mainError = pcall(Main)
+
+if not mainSuccess then
+    warn("[Loader] Critical Error: " .. tostring(mainError))
+    SendNotification("Blox Ultimate", "Critical error occurred. Check console.", 5)
+end
